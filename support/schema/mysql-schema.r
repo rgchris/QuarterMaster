@@ -190,7 +190,17 @@ schema-create: use [result to-key escape form-value listify][
 			get-word! [form-value get :value]
 			string! [press ["'" escape value "'"]]
 			integer! decimal! [form value]
+			money! [head remove find mold value "$"]
 			block! [listify value]
+
+			none! ["NULL"]
+			date! [form-date value either value/time [{'%Y-%m-%d %H:%M:%S'}][{'%Y-%m-%d'}]]
+			time! [form-time value {'%H:%M:%S'}]
+			binary! [press ["'" escape to string! value "'"]]
+			logic! [either value [1][0]]
+			tuple! pair! tag! issue! email! url! file! block! [
+				press ["'" escape mold/all value "'"]
+			]
 		][
 			"[UNSUPPORTED TYPE]"
 		]
@@ -269,12 +279,13 @@ schema-create: use [result to-key escape form-value listify][
 							press ["VARBINARY(" width ")"]
 						]["BLOB"]
 					]
+					money! [press ["DECIMAL(" width ",2)"]]
 				][make error! join "Unknown Type: " type]
 
 				case/all [
 					required [emit " NOT NULL"]
 					increment [emit " auto_increment"]
-					default [emit " DEFAULT " emit default]
+					default [emit " DEFAULT " emit form-value default]
 				]
 			]
 		]

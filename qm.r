@@ -616,6 +616,10 @@ context [
 		append out body
 	]
 
+	prep: func [value [any-type!]][
+		form any [value ""]
+	]
+
 	interpolate: func [body [string!] escapes [any-block!] /local out][
 		body: out: copy body
 
@@ -715,7 +719,7 @@ context [
 
 	export [
 		pad url-encode url-decode load-webform to-webform decode-options
-		load-multipart compose-tags interpolate sanitize string-length?
+		load-multipart compose-tags prep interpolate sanitize string-length?
 	]
 ]
 
@@ -740,10 +744,10 @@ context [
 	]
 
 	to-header: func [object [object!] /local header][
-		header: make string! (20 * length? first object)
-		foreach word next first object [
-			if get word: in object word [
-				insert tail header reduce [word ": " get word newline]
+		header: make string! (20 * length? words-of object)
+		foreach word words-of object [
+			if get :word [
+				insert tail header reduce [word ": " get :word newline]
 			]
 		]
 		header
@@ -3420,8 +3424,8 @@ context [
 	record?: func [record][
 		all [
 			object? record
-			find/match first record [
-				self id new? unique? header owner root path packet data errors
+			find/match words-of record [
+				id new? unique? header owner root path packet data errors
 			]
 			block? record/data
 			record
@@ -3708,11 +3712,12 @@ context [
 
 	engage-model: func [[catch] /local specs type][
 		specs: map read/custom root amend [alpha any file* %.r] func [spec][
-			reduce [to-word form copy/part spec find spec %.r spec]
+			reduce [to set-word! form copy/part spec find spec %.r spec]
 		]
 
 		qm/models: qm/db: context compose [
-			(each [name file] specs [name: to-set-word name])
+			(specs)
+			; (each [name file] specs [name: to-set-word name])
 			database: all [
 				settings/database
 				any [
@@ -3727,7 +3732,7 @@ context [
 			spec: bind load/header root/:spec qm/models
 			type: get in spec/1 'type
 			spec: compose [
-				name: (to-lit-word name)
+				name: (to lit-word! name)
 				header: (spec)
 			]
 			spec: switch type?/word type [
@@ -3747,8 +3752,8 @@ context [
 	]
 
 	disengage-model: does [
-		foreach spec next first qm/models [
-			if port? spec: get in qm/models spec [close spec]
+		foreach spec words-of qm/models [
+			if port? spec: get :spec [close spec]
 		]
 	]
 
@@ -4132,6 +4137,10 @@ context [
 				"put" "delete" [%,edit]
 			]
 		]
+	]
+
+	submit: func [record [object!] 'name [word!] values [any-type!]][
+		record/submit :name values
 	]
 
 	where: func [condition [file!] then [block!] /else otherwise [block!]][

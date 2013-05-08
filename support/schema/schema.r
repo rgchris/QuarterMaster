@@ -1,9 +1,13 @@
 REBOL [
-	Title: "Schema Loader"
+	Title: "Schema Handler for MySQL"
 	Date:  5-Aug-2012
 	Author: "Christopher Ross-Gill"
 	Type: 'module
-	Exports: [load-schema]
+	Exports: [
+		load-schema
+		analyse-schema
+		apply-schema
+	]
 ]
 
 map: func [series [any-block! port!] action [any-function!] /only /copy /local new][
@@ -151,7 +155,7 @@ load-schema: use [parse-schema result database table field view queries to-parse
 		decimal: ['decimal!]
 		logic: ['logic!]
 		string: ['string!]
-		binary: ['block! | 'binary! | 'email! | 'url! | 'tuple! | 'issue!]
+		binary: ['block! | 'binary! | 'email! | 'url! | 'tuple! | 'issue! | 'money!]
 		date: ['date!]
 
 		rule: [
@@ -217,7 +221,7 @@ load-schema: use [parse-schema result database table field view queries to-parse
 			[word! | path!] ['= | ops] [
 				  [word! | path!]
 				| integer! | decimal! | logic! | string! | date!
-				| block! | binary! | email! | url! | tuple! | issue!
+				| block! | binary! | email! | url! | tuple! | issue! | money!
 			] wrap
 			|
 			['all | 'any] into [some expression]
