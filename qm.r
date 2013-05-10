@@ -1,7 +1,7 @@
 REBOL [
 	Title: "QuarterMaster"
 	Author: "Christopher Ross-Gill"
-	Version: 0.7.0
+	Version: 0.7.1
 	Notes: {Warning: Work-In-Progress - no liabilities for damage, etc.}
 	License: http://creativecommons.org/licenses/by-sa/3.0/
 	Needs: [2.7.8 shell]
@@ -69,7 +69,7 @@ use [seed][
 	]
 
 	append seed now/precise
-	random/seed to-integer checksum/secure seed
+	random/seed to integer! checksum/secure seed
 ]
 
 ;--## EXTENDED CORE FUNCTIONS
@@ -255,7 +255,7 @@ context [
 
 	get-choice: func [word [string! word!] words [any-block!]][
 		all [
-			word: attempt [to-word word]
+			word: attempt [to word! word]
 			find words word
 			word
 		]
@@ -271,7 +271,7 @@ context [
 
 	link-to: func ['path [any-block!] /full /local out][
 		out: copy %""
-		path: compose to-block path
+		path: compose to block! path
 		foreach val path [
 			case [
 				issue? val [append out mold val]
@@ -289,7 +289,7 @@ context [
 		"Evaluates a path and reduces contained paren values"
 		'path [path! lit-path! word! lit-word!]
 	][
-		to-path new-line/all compose to-block path none
+		to path! new-line/all compose to block! path none
 	]
 
 	paginate: func [
@@ -303,7 +303,7 @@ context [
 		padding: any [padding 2]
 
 		context [
-			last: max 1 to-integer (length? series) - 1 / length + 1
+			last: max 1 to integer! (length? series) - 1 / length + 1
 			current: max 1 min last page
 			next: either last > current [current + 1][false]
 			previous: either 1 < current [current - 1][false]
@@ -341,7 +341,7 @@ context [
 			if all [
 				old = current
 				new = target
-				all to-block :permission
+				all to block! :permission
 			][
 				break/return do action
 			]
@@ -441,7 +441,7 @@ context [
 			char: change char char/1 xor pick utf-os length? char
 			forskip char 1 [change char char/1 xor 128]
 			char: head reverse head char
-			forskip char 1 [int: (to-integer char/1) * (pick utf-fc index? char) + int]
+			forskip char 1 [int: (to integer! char/1) * (pick utf-fc index? char) + int]
 			all [int > 127 int <= 65535 int]
 		]
 	]
@@ -508,7 +508,7 @@ context [
 
 		func [text [any-string!] /wiki][
 			sp: either wiki [#"_"][#"+"]
-			decrlf dehex deplus to-string text
+			decrlf dehex deplus to string! text
 		]
 	]
 
@@ -560,7 +560,7 @@ context [
 
 		object: [
 			any [
-				here: [word! | set-word!] (insert path to-word here/1)
+				here: [word! | set-word!] (insert path to word! here/1)
 				[value | block] (remove path)
 			] end
 		]
@@ -646,7 +646,7 @@ context [
 				| #"^"" (text: change/part text "&quot;" 1) :text
 				| #"^M" (remove text) :text 
 				| copy char utf-8 (text: change/part text rejoin ["&#" get-ucs-code char ";"] length? char)
-				| skip (text: change/part text rejoin ["#(" to-integer text/1 ")"] 1) :text
+				| skip (text: change/part text rejoin ["#(" to integer! text/1 ")"] 1) :text
 				; | skip (text: change text "#") :text
 			]
 		]
@@ -694,12 +694,12 @@ context [
 								filename
 							]
 						][%file.dat]
-						content: either filetype/1 = 'text [decrlf content][to-binary content]
+						content: either filetype/1 = 'text [decrlf content][to binary! content]
 						add-to store name make file-prototype [
 							name: :filename type: :filetype data: :content
 						]
 					][
-						add-to store name to-string decrlf content
+						add-to store name to string! decrlf content
 					]
 				)
 			]
@@ -729,7 +729,7 @@ context [
 	add-protocol: func ['name id handler /with block][
 		unless in system/schemes name [
 			system/schemes: make system/schemes compose [
-				(to-set-word name) #[none]
+				(to set-word! name) #[none]
 			]
 		]
 		set in system/schemes name make system/standard/port compose [
@@ -781,8 +781,8 @@ context [
 			]
 			root: select settings/spaces domain
 		] with/only space [
-			path: all [path to-file path]
-			target: all [target to-file target]
+			path: all [path to file! path]
+			target: all [target to file! target]
 			folder: join root any [path ""]
 			file: join folder any [target ""]
 			suffix: suffix? file
@@ -806,8 +806,8 @@ context [
 	]
 
 	get-iso-year: func [year [integer!] /local d1 d2][
-		d1: to-date join "4-1-" year
-		d2: to-date join "28-12-" year
+		d1: to date! join "4-1-" year
+		d2: to date! join "28-12-" year
 		return reduce [d1 + 1 - d1/weekday d2 + 7 - d2/weekday]
 	]
 
@@ -829,7 +829,7 @@ context [
 		#"A" [pick system/locale/days date/weekday]
 		#"b" [copy/part pick system/locale/months date/month 3]
 		#"B" [pick system/locale/months date/month]
-		#"C" [to-integer date/year / 100]
+		#"C" [to integer! date/year / 100]
 		#"d" [pad date/day 2]
 		#"D" [date/year #"-" pad date/month 2 #"-" pad date/day 2]
 		#"e" [date/day]
@@ -849,10 +849,10 @@ context [
 		#"t" [#"^-"]
 		#"T" [pad time/hour 2 #":" pad time/minute 2 #":" pad round time/second 2]
 		#"u" [date/weekday]
-		#"U" [pad to-integer date/julian + 6 - (date/weekday // 7) / 7 2]
+		#"U" [pad to integer! date/julian + 6 - (date/weekday // 7) / 7 2]
 		#"V" [pad first to-iso-week date 2]
 		#"w" [date/weekday // 7]
-		#"W" [pad to-integer date/julian + 7 - date/weekday / 7 2]
+		#"W" [pad to integer! date/julian + 7 - date/weekday / 7 2]
 		#"y" [pad date/year // 100 2]
 		#"Y" [date/year]
 		#"z" [pad-zone/flat zone]
@@ -885,10 +885,10 @@ context [
 	]
 
 	color-codes: [
-		#"r" [color/1] #"1" [to-char color/1]
-		#"g" [color/2] #"2" [to-char color/2]
-		#"b" [color/3] #"3" [to-char color/3]
-		#"a" [color/4] #"4" [to-char color/4]
+		#"r" [color/1] #"1" [to char! color/1]
+		#"g" [color/2] #"2" [to char! color/2]
+		#"b" [color/3] #"3" [to char! color/3]
+		#"a" [color/4] #"4" [to char! color/4]
 		#"R" [skip tail to-hex color/1 -2]
 		#"G" [skip tail to-hex color/2 -2]
 		#"B" [skip tail to-hex color/3 -2]
@@ -940,7 +940,7 @@ context [
 			block? format [format: amend bind format 'value]
 			none? format [format: select masks type]
 			none? format [if type = type? value [return value]]
-			any-word? format [format: select masks to-word format]
+			any-word? format [format: select masks to word! format]
 			block? format [
 				unless parse/all value: form value format [return none]
 			]
@@ -1007,7 +1007,7 @@ context [
 						unless true = value [report not-accepted]
 					) |
 					'confirmed opt 'by set val get-word! otherwise (
-						val: to-word val
+						val: to word! val
 						unless value = as/where :type get-from source :val format [
 							report not-confirmed
 						]
@@ -1063,7 +1063,18 @@ context [
 		skip-constraints: does [constraints: [to set-word! | to end]]
 
 		valid?: func [value][any [value find type 'none!]]
-		humanize: func [word][uppercase/part replace/all form word "-" " " 1]
+		humanize: func [key /local initial][
+			initial: true
+			if parse form key amend [
+				copy key any [
+					key: alpha (if initial [uppercase/part key 1] initial: false)
+					| ["-" | "_" | " "] (change key " " initial: true)
+					| skip (initial: false)
+				]
+			][
+				rejoin ["'" key "'"]
+			]
+		]
 
 		report: func ['message [word!]][
 			message: any [
@@ -1103,7 +1114,7 @@ context [
 
 		spec: make-filter source compose/deep/only spec [
 			any [
-				set key set-word! (key: to-word key)
+				set key set-word! (key: to word! key)
 				set required opt 'opt (required: required <> 'opt)
 				[
 					set type datatype (type: get type)
@@ -1197,7 +1208,7 @@ context [
 		spec: make-filter source compose/deep/only spec [
 			(skip-constraints)
 			any [
-				set key set-word! (key: to-word key)
+				set key set-word! (key: to word! key)
 				opt 'opt
 				[set type datatype (type: get type)
 				| set type ['dialect | 'match | 'object!] (type: :block!)]
@@ -1253,7 +1264,7 @@ context [
 			(result: context append remove-each item copy spec [not set-word? item] none)
 
 			some [
-				set key set-word! (key: to-word key)
+				set key set-word! (key: to word! key)
 				set required ['opt | 'any | 'some | none]
 				copy type [lit-word! any ['| lit-word!] | datatype any ['| datatype]]
 				otherwise
@@ -1329,7 +1340,7 @@ context [
 		path: make block! []
 		either parse/all target: form target [
 			base some [
-				thru #"/" mk: (append path to-file copy/part target mk)
+				thru #"/" mk: (append path to file! copy/part target mk)
 			] end
 		][return path][
 			throw make error! compose [access invalid-path (target)]
@@ -1622,7 +1633,7 @@ context [
 		target: opt 'new-tab
 		rel: any lit-word!
 	][
-		all [email? href href: append to-url "mailto:" href]
+		all [email? href href: append to url! "mailto:" href]
 		all [path? href href: link-to :href]
 		target: switch/default target [new-tab ["_blank"]][none]
 	]
@@ -1707,6 +1718,7 @@ context [
 		]["text"]
 		name: to-key name
 		class: append any [class copy []] either type = "date" [/date][/text]
+		if date? value [value: form-date/gmt value "%Y-%m-%d"]
 		value: any [value ""]
 		required: unless required = 'opt ["required"]
 	]
@@ -1979,7 +1991,7 @@ context [
 
 		locals: collect [
 			foreach word locals [
-				keep reduce [to-set-word word get/any word]
+				keep reduce [to set-word! word get/any word]
 			]
 		]
 
@@ -2086,7 +2098,7 @@ context [
 		to-pair xor-pair or-pair and-pair remainder-pair floor
 		hash-v9 hash-v10 crypt-v9 crypt-v10 crypt-v11
 	][
-		to-pair: func [value [integer!]][sw*/to-pair reduce [value 1]]
+		to-pair: func [value [integer!]][to pair! reduce [value 1]]
 		xor-pair: func [p1 p2][to-pair p1/x xor p2/x]
 		or-pair: func [p1 p2][to-pair p1/x or p2/x]
 		and-pair: func [p1 p2][to-pair p1/x and p2/x]
@@ -2094,11 +2106,11 @@ context [
 		remainder-pair: func [val1 val2 /local new][
 			val1: either negative? val1/x [abs val1/x + 2147483647.0][val1/x]
 			val2: either negative? val2/x [abs val2/x + 2147483647.0][val2/x]
-			to-pair to-integer val1 // val2
+			to-pair to integer! val1 // val2
 		]
 
 		floor: func [value][
-			value: to-integer either negative? value [value - .999999999999999][value]
+			value: to integer! either negative? value [value - .999999999999999][value]
 			either negative? value [complement value][value]
 		]
 
@@ -2107,7 +2119,7 @@ context [
 			nr2: 7x1
 			foreach byte data [
 				if all [byte <> #" " byte <> #"^(tab)"][
-					byte: to-pair to-integer byte
+					byte: to-pair to integer! byte
 					nr: xor-pair nr (((and-pair 63x1 nr) + nr2) * byte) + (nr * 256x1)
 					nr2: nr2 + byte
 				]
@@ -2118,17 +2130,17 @@ context [
 		hash-v10: func [data [string!] /local nr nr2 adding byte][
 			nr: 1345345333x1
 			adding: 7x1
-			nr2: to-pair to-integer #12345671
+			nr2: to-pair to integer! #12345671
 			foreach byte data [
 				if all [byte <> #" " byte <> #"^(tab)"][
-					byte: to-pair to-integer byte
+					byte: to-pair to integer! byte
 					nr: xor-pair nr (((and-pair 63x1 nr) + adding) * byte) + (nr * 256x1)
 					nr2: nr2 + xor-pair nr (nr2 * 256x1)
 					adding: adding + byte
 				]
 			]
-			nr: and-pair nr to-pair to-integer #7FFFFFFF
-			nr2: and-pair nr2 to-pair to-integer #7FFFFFFF
+			nr: and-pair nr to-pair to integer! #7FFFFFFF
+			nr2: and-pair nr2 to-pair to integer! #7FFFFFFF
 			reduce [nr nr2]
 		]
 
@@ -2137,7 +2149,7 @@ context [
 			new max-value clip-max hp hm nr seed1 seed2 d b i
 		][
 			new: make string! length? seed
-			max-value: to-pair to-integer #01FFFFFF
+			max-value: to-pair to integer! #01FFFFFF
 			clip-max: func [value][remainder-pair value max-value]
 			hp: hash-v9 seed
 			hm: hash-v9 data	
@@ -2148,8 +2160,8 @@ context [
 			foreach i seed [
 				seed1: clip-max ((seed1 * 3x1) + seed2)
 				seed2: clip-max (seed1 + seed2 + 33x1)
-				d: seed1/x / to-decimal max-value/x
-				append new to-char floor (d * 31) + 64
+				d: seed1/x / to decimal! max-value/x
+				append new to char! floor (d * 31) + 64
 			]
 			new
 		]
@@ -2159,7 +2171,7 @@ context [
 			new max-value clip-max pw msg seed1 seed2 d b i
 		][
 			new: make string! length? seed
-			max-value: to-pair to-integer #3FFFFFFF
+			max-value: to-pair to integer! #3FFFFFFF
 			clip-max: func [value][remainder-pair value max-value]
 			pw: hash-v10 seed
 			msg: hash-v10 data	
@@ -2170,13 +2182,13 @@ context [
 			foreach i seed [
 				seed1: clip-max ((seed1 * 3x1) + seed2)
 				seed2: clip-max (seed1 + seed2 + 33x1)
-				d: seed1/x / to-decimal max-value/x
-				append new to-char floor (d * 31) + 64
+				d: seed1/x / to decimal! max-value/x
+				append new to char! floor (d * 31) + 64
 			]
 			seed1: clip-max (seed1 * 3x1) + seed2
 			seed2: clip-max seed1 + seed2 + 33x0
-			d: seed1/x / to-decimal max-value/x
-			b: to-char floor (d * 31)
+			d: seed1/x / to decimal! max-value/x
+			b: to char! floor (d * 31)
 
 			forall new [new/1: new/1 xor b]
 			head new
@@ -2212,7 +2224,7 @@ context [
 		b0: b1: b2: b3: value: mk: none
 		byte-char: complement charset []
 
-		null: to-char 0
+		null: to char! 0
 
 		string: [copy value to null null | copy value to end]
 
@@ -2311,7 +2323,7 @@ context [
 			wire/last-status: status: to integer! wire/buffer/1
 			wire/error-code: wire/error-msg: none
 
-			net-log ["Status" to-tag status]
+			net-log ["Status" to tag! status]
 
 			switch status [
 				255 [ ; exception
@@ -2424,7 +2436,7 @@ context [
 		]
 
 		send-packet: func [port [port!] data [string! block!]][
-			net-log ["SEND PACKET" to-tag port/locals/seq-num: port/locals/seq-num + 1]
+			net-log ["SEND PACKET" to tag! port/locals/seq-num: port/locals/seq-num + 1]
 			if block? data [data: rejoin bind data 'send-packet]
 
 			data: join #{} [
@@ -2486,7 +2498,7 @@ context [
 		]
 
 		send-command: func [[throw] 'command [word!] port [port!] statement [string! block!] /response][
-			net-log ["SEND COMMAND" to-tag :command]
+			net-log ["SEND COMMAND" to tag! :command]
 			unless find commands command [raise ["Unknown Command: " command]]
 
 			port/locals/seq-num: -1
@@ -2513,13 +2525,13 @@ context [
 				response: read-packet port
 				port/locals/stream-end?: true
 				switch/default command [
-					statistics [to-string response]
+					statistics [to string! response]
 					ping [
 						either zero? port/locals/last-status [
 							net-log "Ping Response OK."
 							true
 						][
-							net-log ["BAD PING RESPONSE" to-tag port/locals/last-status]
+							net-log ["BAD PING RESPONSE" to tag! port/locals/last-status]
 							false
 						]
 					]
@@ -2567,8 +2579,8 @@ context [
 				; 	forall value [repend res [to-sql value/1 #","]]
 				; 	head change back tail res #")"
 				; ]
-				word!	[escape form value]
-				path!	[either parse value [some word!][remove press map-each word to-block value [join "." form word]][form value]]
+				word!	[escape replace/all form value "-" "_"]
+				path!	[either parse value [some word!][remove press map-each word to block! value [join "." form word]][form value]]
 				logic!  [either value [1][0]]
 				tuple! pair! tag! issue! email! url! file! block! [to-sql mold/all value]
 			][
@@ -2579,16 +2591,17 @@ context [
 		bind-query: func [statement [string! block!] /local args mk ex][
 			if string? statement [return statement]
 			statement: take args: reduce statement
-			parse/all statement [
-				(statement: make string! 100)
-				mk: any [
-					to #"?" ex: (
-						append statement copy/part mk ex
-						append statement to-sql take args
-					) #"?" mk:
-				][end | to end ex: (append statement copy/part mk ex)]
+
+			press collect [
+				parse/all statement [
+					mk: any [
+						to #"?" ex: (
+							keep copy/part mk ex
+							keep to-sql take args
+						) #"?" mk:
+					][end | to end ex: (keep copy/part mk ex)]
+				]
 			]
-			statement
 		]
 	]
 
@@ -2659,7 +2672,7 @@ context [
 						field  ; db
 						field  (header/table: value)
 						field  ; org-table
-						field  (header/name: to-word value)
+						field  (header/name: to word! value)
 						field  ; org-name
 						byte   ; filler
 						int    ; charsetnr
@@ -2950,11 +2963,11 @@ context [
 			/local sub-port data in-bypass find-bypass bp
 		][
 			if not sub-protocol [subproto: 'tcp] 
-			net-log reduce ["Opening" to-string subproto "for" to-string port/scheme] 
+			net-log reduce ["Opening" to string! subproto "for" to string! port/scheme] 
 			net-log	reduce ["connecting to:" port/host]
 
 			port/sub-port: sub-port: system/words/open/lines compose [
-				scheme: (to-lit-word subproto) 
+				scheme: (to lit-word! subproto) 
 				host: port/host
 				user: port/user
 				pass: port/pass
@@ -3222,13 +3235,13 @@ context [
 	]
 
 	query-db: use [name-fields][
-		name-fields: func [db [port!] record [block!] /local out][
-			out: make block! 2 * length? record
-			repeat os length? record [
-				out: insert out db/locals/columns/:os/name
-				out: insert/only out record/:os
-			]
-			new-line/all/skip head out true 2
+		name-fields: func [db [port!] record [block!]][
+			new-line/all/skip collect [
+				repeat os length? record [
+					keep db/locals/columns/:os/name
+					keep/only record/:os
+				]
+			] true 2
 		]
 
 		query-db: func [
@@ -3368,13 +3381,13 @@ context [
 			unique?: does [not find owner get 'id]
 
 			store: func [[catch] /only fields [block!] /res][
-				throw-on-error [
+				; throw-on-error [
 					case [
 						not new? [change owner self self]
 						not unique? [errors: [id ["Record ID already exists."]] none]
 						else [append owner self self]
 					]
-				]
+				; ]
 			]
 
 			destroy: does [
@@ -3443,7 +3456,8 @@ context [
 				detect-type: func [column [object!]][
 					parse/all column/type with/only column [
 						  "int" opt ["(" copy size some digit ")"] end (type: integer! size: all [size load size])
-						| "varchar(" copy size some digit ")" (type: string! size: to-integer size)
+						| "varchar(" copy size some digit ")" (type: string! size: to integer! size)
+						| "decimal(" copy size some digit ",2)" end (type: money! size: 2 + to integer! size)
 						| "decimal" end (type: money!)
 						| "float" end (type: decimal!)
 						| "date" opt "time" end (type: date!)
@@ -3454,7 +3468,7 @@ context [
 							"'" copy local some [in-squote | "''"] "'" ["," | ")" end]
 							(append within replace/all local "''" "'")
 						] (type: string!)
-						| "varbinary(" copy size some digit ")" (type: any-type! size: to-integer size)
+						| "varbinary(" copy size some digit ")" (type: any-type! size: to integer! size)
 						| "text" (type: string!)
 						| "blob" (type: any-type!)
 					]
@@ -3482,7 +3496,7 @@ context [
 									set default [string! | none!]
 									set increment [string! | none!] ; extra
 									(
-										keep to-set-word name
+										keep to set-word! name
 										detect-type column
 										keep make column []
 									)
@@ -3507,8 +3521,8 @@ context [
 			populate: func [[catch] packet [object!] record [object!] /local value][
 				clear errors: record/errors
 
-				foreach [key spec] third packet [
-					key: to-word key
+				foreach [key spec] body-of packet [
+					key: to word! key
 					value: record/get key
 
 					if all [
@@ -3617,7 +3631,7 @@ context [
 				criteria [
 					all [
 						result: query-db/named/first [
-							"SELECT * FROM ? WHERE id = ?" to-word table/locals/name criteria
+							"SELECT * FROM ? WHERE id = ?" to word! table/locals/name criteria
 						]
 						load-record table result
 					]
@@ -3628,14 +3642,14 @@ context [
 		find: func [table [port!] id /local index][
 			if all [
 				id
-				query-db/first ["SELECT id FROM ? WHERE id = ?" to-word table/locals/name form id]
+				query-db/first ["SELECT id FROM ? WHERE id = ?" to word! table/locals/name form id]
 			][id]
 		]
 
 		pick: func [table [port!] /local record][
 			all [
 				record: query-db/named/first [
-					"SELECT * FROM ? LIMIT ?,1" to-word table/locals/name 1 + table/state/index
+					"SELECT * FROM ? LIMIT ?,1" to word! table/locals/name 1 + table/state/index
 				]
 				load-record table record
 			]
@@ -3646,10 +3660,10 @@ context [
 				not record? record [raise "Not a RoughCut Active Record"]
 				not id: record/get 'id [raise "Active Record needs an ID"]
 			][
-				record/new?: false
 				record/on-save
 
 				return if id: insert-db table prepare record [
+					record/new?: false
 					record/set 'id record/id: id
 					attempt [
 						record/root: record/path: table/locals/root/(table/locals/locate id)
@@ -3691,7 +3705,7 @@ context [
 				all [
 					result: query-db/named [
 						"SELECT * FROM ? LIMIT ?,?"
-						to-word table/locals/name
+						to word! table/locals/name
 						table/state/index
 						table/state/num
 					]
@@ -3717,7 +3731,7 @@ context [
 
 		qm/models: qm/db: context compose [
 			(specs)
-			; (each [name file] specs [name: to-set-word name])
+			; (each [name file] specs [name: to set-word! name])
 			database: all [
 				settings/database
 				any [
@@ -3737,7 +3751,7 @@ context [
 			]
 			spec: switch type?/word type [
 				word! [
-					spec: compose/only [scheme: (to-lit-word type) locals: (spec)]
+					spec: compose/only [scheme: (to lit-word! type) locals: (spec)]
 					if error? spec: try [open spec][
 						raise ["Error opening Model: %models/" name ".r <" type "::" name ">"]
 					]
@@ -3795,8 +3809,8 @@ qm/request: make system/options/cgi [
 					| copy part ["," name] (aspect: part)
 				][
 					end (
-						format: all [format to-file format]
-						aspect: all [aspect to-file aspect]
+						format: all [format to file! format]
+						aspect: all [aspect to file! aspect]
 					) | (format: aspect: none)
 				]
 			]
@@ -3884,7 +3898,7 @@ qm/request: make system/options/cgi [
 				body: :input
 				content-length = length? body
 			][body][#{}]
-			either binary [body][to-string body]
+			either binary [body][to string! body]
 		]
 	]
 
@@ -3982,7 +3996,7 @@ context [
 
 	if find qm/request/server-software "Cheyenne" [
 		send-response: func [body [string! binary!]][
-			prin to-string body
+			prin to string! body
 		]
 	]
 
@@ -4095,7 +4109,7 @@ context [
 		qm/response/body: :body
 
 		case/all [
-			only [qm/response/body: to-binary body]
+			only [qm/response/body: to binary! body]
 			status [qm/response/status: :code]
 			as [qm/response/type: :type]
 			file? body [
@@ -4184,7 +4198,7 @@ context [
 		event: use [event code][
 			[
 				'event set event ["before" | "after" | "finish"] 'does set code block! (
-					event: to-word event
+					event: to word! event
 					any [block? ctrl/(event) ctrl/(event): code]
 				)
 			]
@@ -4249,14 +4263,14 @@ context [
 
 		route: foreach [path action] controller/routes [
 			args: request/path-info
-			path: to-block path
+			path: to block! path
 
 			case/all [
 				string? path/1 [
 					args: either path/1 = args/1 [next args][none]
 					path: next path
 				]
-				args: import/block args to-block path [
+				args: import/block args to block! path [
 					break/return action
 				]
 			]
@@ -4275,7 +4289,7 @@ context [
 			exit
 		]
 
-		view-path: dirize to-file controller/name
+		view-path: dirize to file! controller/name
 
 		qm: make qm context with/only qm with/only 'root collect [
 			comment {header}
@@ -4296,9 +4310,9 @@ context [
 			keep load wrt://system/events/startup.r
 			keep controller/before
 
-			foreach [word value] args [keep to-set-word word keep value]
+			foreach [word value] args [keep to set-word! word keep value]
 			foreach [word] any [get in controller/header 'locals []][
-				keep to-set-word word
+				keep to set-word! word
 			]
 			keep none
 
@@ -4372,7 +4386,7 @@ try-else [
 	publish
 
 	attempt [
-		save to-url form-date/gmt now "wrt://space/crash/err%Y%m%d-%H%M%S.txt" reduce [
+		save to url! form-date/gmt now "wrt://space/crash/err%Y%m%d-%H%M%S.txt" reduce [
 			now form qm/request/request-uri reason
 		]
 	]
