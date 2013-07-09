@@ -422,6 +422,7 @@ context [
 	name: union union lower digit charset "*!',()_-"
 	wordify-punct: charset "-_()!"
 
+	ucs: charset ""
 	utf-8: use [utf-2 utf-3 utf-4 utf-5 utf-b][
 		utf-2: #[bitset! 64#{AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////wAAAAA=}]
 		utf-3: #[bitset! 64#{AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//AAA=}]
@@ -860,7 +861,8 @@ context [
 
 		#"c" [
 			date/year #"-" pad date/month 2 "-" pad date/day 2 "T"
-			pad time/hour 2 #":" pad time/minute 2 #":" pad round time/second 2 pad-zone zone
+			pad time/hour 2 #":" pad time/minute 2 #":" pad to integer! time/second 2 
+			either gmt ["Z"][pad-zone zone]
 		]
 	]
 
@@ -1915,7 +1917,7 @@ context [
 	load-rsp: func [[catch] body [string!] /local code mk][
 		code: make string! length? body
 
-		append code "out*: make string! {}^/"
+		append code "REBOL [Title: {RSP Output}]^/out*: make string! {}^/"
 		parse/all body [
 			any [
 				end (append code "out*") break
@@ -1926,7 +1928,7 @@ context [
 					| copy mk to "%>" (repend code [mk newline])
 					| (raise "Expected '%>'")
 				] 2 skip
-				| copy mk [to "<%" | to end] (repend code ["prin " mold mk "^/"])
+				| copy mk [to "<%" | to end] (repend code ["prin " mold/all mk "^/"])
 			]
 		]
 
@@ -3286,7 +3288,7 @@ context [
 ;--## ArrowDB
 ;-------------------------------------------------------------------##
 context [
-	space: wrt://space/ ;- for storing files related to a record
+	space: wrt://space/ ; for storing files related to a record
 
 	sw*: get in system 'words
 
@@ -3380,14 +3382,27 @@ context [
 
 			unique?: does [not find owner get 'id]
 
-			store: func [[catch] /only fields [block!] /res][
+			store: func [
+				[catch] "Saves record to database. Returns record on successful store."
+				/only fields [block!] "Save only these fields."
+			][
 				; throw-on-error [
-					case [
-						not new? [change owner self self]
-						not unique? [errors: [id ["Record ID already exists."]] none]
-						else [append owner self self]
+				
+				case [
+					not new? [ ; record already exists--UPDATE
+						change owner self 
+						self
 					]
-				; ]
+					not unique? [ ; new record has existing id--fail
+						errors: [id ["Record ID already exists."]] 
+						none
+					]
+					else [ ; record does not exist--INSERT
+						append owner self 
+						self
+					]
+				]
+				; ]  ; throw
 			]
 
 			destroy: does [
@@ -3395,7 +3410,7 @@ context [
 				self
 			]
 
-			on-load: on-save: on-create: on-change: on-delete: #[none]
+			on-load: on-save: on-create: on-change: on-delete: none
 		]
 
 		forms: context [
@@ -3507,7 +3522,6 @@ context [
 						table/locals/packet: context local
 					]
 				]
-
 				make table/locals/packet []
 			]
 		]
@@ -3518,8 +3532,17 @@ context [
 				repend select errors :key [:code press message]
 			]
 
-			populate: func [[catch] packet [object!] record [object!] /local value][
+
+			populate: func [[catch] packet [object!] record [object!] /local value spec][
 				clear errors: record/errors
+				
+				; if record/partial-store? [
+				; 	spec: body-of packet
+				; 	remove-each [word val] spec [
+				; 		not find record/partial-store? to-word word
+				; 	]
+				; 	packet: context spec
+				; ]
 
 				foreach [key spec] body-of packet [
 					key: to word! key
@@ -3567,8 +3590,9 @@ context [
 				]
 
 				either empty? errors [packet][
-					; probe packet
-					; probe errors
+					;if settings/debug [
+					;	raise mold errors
+					;]
 
 					raise "Record Data Does Not Match Database Spec"
 				]
@@ -3673,7 +3697,10 @@ context [
 			]
 		]
 
-		change: func [table [port!] record [object!]][
+		change: func [
+			table [port!] 
+			record [object!]
+		][
 			unless case/all [
 				not record? record [raise "Not a RoughCut Active Record"]
 				record/unique? [raise "Active Record ID not found"]
@@ -3950,12 +3977,14 @@ qm/response: context [
 		set-header 'Set-Cookie key
 	]
 
-	set-cookie: func [key value /expires on [date!] /path root /domain base /open][
-		value: rejoin [form key "=" url-encode value]
-		if expires [append value form-date/gmt on "; expires=%a, %d %b %Y %T GMT"]
-		repend value ["; path=" any [root %/]]
-		if domain [repend value ["; domain=" base]]
-		unless open [repend value "; HttpOnly"]
+	set-cookie: func [key value /expires on [date!] /path root [file!] /domain base [string!] /open][
+		value: rejoin collect [
+			keep [form key "=" url-encode value]
+			if expires [keep form-date/gmt on "; expires=%a, %d %b %Y %T GMT"]
+			keep ["; path=" any [root %/]]
+			if domain [keep ["; domain=" base]]
+			unless open [keep "; HttpOnly"]
+		]
 		set-header 'Set-Cookie value
 	]
 
@@ -4132,7 +4161,7 @@ context [
 		render/status/template :body :status none
 	]
 
-	print: func [value][render/as/template reform value text/plain none]
+	print: func [value][render/as/template to binary! reform value text/plain none]
 
 	format: does [
 		any with/only qm [
@@ -4146,10 +4175,6 @@ context [
 		any with/only qm [
 			response/aspect
 			request/aspect
-			switch request/action [
-				"post" [%,new]
-				"put" "delete" [%,edit]
-			]
 		]
 	]
 
@@ -4280,7 +4305,7 @@ context [
 			object? route
 			action: select route/actions request/action
 			parse action compose/deep [
-				[thru request/aspect | thru 'default]
+				[thru request/aspect | thru request/format | thru 'default]
 				to block! set code block! to end
 			]
 		][
