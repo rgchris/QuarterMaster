@@ -22,7 +22,7 @@ qm: context [
 	title: ""
 	date: now
 	code: []
-	live?: string? system/options/cgi/server-name
+	live?: string? system/options/cgi/server-software
 	cheyenne?: parse any [system/options/cgi/server-software ""][thru "Cheyenne" to end]
 ]
 
@@ -43,9 +43,11 @@ settings: qm/settings: construct/with any [
 	qm/profile/settings
 	make error! "No Settings Provided"
 ] context [
-	get: func [key [word!]][
-		all [not key = 'self key: in self key get key]
-	]
+	get: none
+]
+
+settings/get: func [key [word!]][
+	all [not key = 'self key: in settings key get key]
 ]
 
 date: qm/date: qm/date - qm/date/zone + settings/zone
