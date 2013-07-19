@@ -1,7 +1,7 @@
 REBOL [
 	Title: "QuarterMaster"
 	Author: "Christopher Ross-Gill"
-	Version: 0.7.1
+	Version: 0.7.2
 	Notes: {Warning: Work-In-Progress - no liabilities for damage, etc.}
 	License: http://creativecommons.org/licenses/by-sa/3.0/
 	Needs: [2.7.8 shell]
@@ -3924,7 +3924,7 @@ qm/request: make system/options/cgi [
 
 		body: func [/binary][
 		 	body: either all [
-				body: :input
+				body: input
 				content-length = length? body
 			][body][#{}]
 			either binary [body][to string! body]
