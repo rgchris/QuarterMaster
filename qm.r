@@ -3820,8 +3820,8 @@ qm/request: make system/options/cgi [
 	get-header: func [name][select other-headers form name]
 
 	clear find request-path: copy request-uri: as file! any [
+		get-header "HTTP_INTERNAL_REFERER" ; Cheyenne
 		get-env "REQUEST_URI"
-		get-header "HTTP_INTERNAL_REFERER"
 		"/"
 	] "?"
 
