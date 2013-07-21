@@ -1,7 +1,7 @@
 REBOL [
 	Title: "QuarterMaster"
 	Author: "Christopher Ross-Gill"
-	Version: 0.7.2
+	Version: 0.7.3
 	Notes: {Warning: Work-In-Progress - no liabilities for damage, etc.}
 	License: http://creativecommons.org/licenses/by-sa/3.0/
 	Needs: [2.7.8 shell]
@@ -930,6 +930,57 @@ context [
 		'key      [word 0 6 [#"." word]]
 	]
 
+	load-rfc3339: func [date [string!]][
+		date: replace copy date "T" "/"
+		replace date "Z" "+0:00"
+		attempt [to-date date]
+	]
+
+	load-rfc822: use [day month][
+		day: remove collect [
+			foreach day system/locale/days [
+				keep '|
+				keep copy/part day 3
+			]
+		]
+
+		month: remove collect [
+			foreach month system/locale/months [
+				keep '|
+				keep copy/part month 3
+			]
+		]
+
+		; "Tue, 08 Jan 2013 15:19:11 UTC"
+		func [date [string!] /local part checked][
+			date: collect [
+				checked: parse/all date amend [
+					day ", "
+					copy part 2 digit (keep part)
+					" " (keep "-")
+					copy part month (keep part)
+					" " (keep "-")
+					copy part 4 digit (keep part)
+					" " (keep "/")
+					copy part [
+						2 digit ":" 2 digit opt [":" 2 digit]
+					] (keep part)
+					" "
+					[
+						  ["UTC" | "GMT"]
+						| copy part [["+" | "-"] 2 digit ":" 2 digit] (keep part)
+						| copy part [["+" | "-"] 4 digit] (
+							insert at part 4 ":"
+							keep part
+						)
+						| to end
+					]
+				]
+			]
+			if checked [to date! rejoin date]
+		]
+	]
+
 	as: func [
 		[catch] type [datatype!] value [any-type!]
 		/where format [none! block! any-word!]
@@ -938,8 +989,10 @@ context [
 			all [string? value any [type <> string! any-word? format]][value: trim value]
 			type = logic! [if find ["false" "off" "no" "0" 0] value [return false]]
 			all [string? value type = date!][
-				value: replace copy value "T" "/"
-				replace value "Z" "+0:00"
+				value: any [
+					load-rfc3339 value
+					load-rfc822 value
+				]
 			]
 			block? format [format: amend bind format 'value]
 			none? format [format: select masks type]
