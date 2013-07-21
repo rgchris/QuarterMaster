@@ -1611,6 +1611,8 @@ context [
 ;-------------------------------------------------------------------##
 context [
 	root: wrt://support/
+	app: wrt://system/support/
+
 	cache: []
 
 	require: know: func [[catch] location [file!] /reset /args arg /local helper][
@@ -1618,7 +1620,10 @@ context [
 		any [
 			select cache location
 			if all [
-				helper: attempt [load/header root/:location]
+				helper: any [
+					attempt [load/header app/:location]
+					attempt [load/header root/:location]
+				]
 				helper: context compose [
 					system/script: make system/script compose/only [
 						title: helper/1/title
