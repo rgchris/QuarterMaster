@@ -1,7 +1,7 @@
 REBOL [
 	Title: "QuarterMaster"
 	Author: "Christopher Ross-Gill"
-	Version: 0.7.3
+	Version: 0.7.4
 	Notes: {Warning: Work-In-Progress - no liabilities for damage, etc.}
 	License: http://creativecommons.org/licenses/by-sa/3.0/
 	Needs: [2.7.8 shell]
@@ -986,6 +986,7 @@ context [
 		/where format [none! block! any-word!]
 	][
 		case/all [
+			none? value [value: ""]
 			all [string? value any [type <> string! any-word? format]][value: trim value]
 			type = logic! [if find ["false" "off" "no" "0" 0] value [return false]]
 			all [string? value type = date!][
@@ -1375,14 +1376,14 @@ context [
 	sw*: system/words
 	rights: [
 		folder [
-			owner-read: group-read: world-read:
-			owner-write: group-write: world-write:
-			owner-execute: group-execute: world-execute: #[true]
+			owner-read: group-read:
+			owner-write: group-write:
+			owner-execute: group-execute: #[true]
 		]
 		file [
-			owner-read: group-read: world-read:
-			owner-write: group-write: world-write: #[true]
-			owner-execute: group-execute: world-execute: #[false]
+			owner-read: group-read:
+			owner-write: group-write: #[true]
+			owner-execute: group-execute: #[false]
 		]
 	]
 
@@ -2877,7 +2878,7 @@ context [
 				float			[to decimal!]
 				double			none
 				null			none
-				timestamp		none
+				timestamp		[to-datetime]
 				longlong		[to integer!]
 				int24			[to integer!]
 				date			[to-date]
