@@ -1,20 +1,28 @@
 REBOL [
 	Title: "Makedoc"
-	Date: 26-Oct-2011
+	Date: 23-Jul-2013
 	Author: ["Gabriele Santilli" "Christopher Ross-Gill"]
 	License: %license.r ; fsm!
 	Type: 'module
 	Root: wrt://system/makedoc/
+	Version: 3.1.0 ; CRG Version
 	Exports: [
-		load-doc make-doc load-para make-para
+		load-doc make-doc make-para
 	]
+]
+
+root: :header/root
+
+load-next: func [string [string!]][
+	load/next string
 ]
 
 load-scanpara: use [para!][
 	para!: context amend [
 		para: copy []
 		emit: use [prev][
-			func [data][
+			func [data /after alt][
+				all [after in-word? data: alt]
 				prev: pick back tail para 1
 				case [
 					not string? data [append/only para data]
@@ -34,7 +42,7 @@ load-scanpara: use [para!][
 			[
 				mk: {"} (
 					either error? try [
-						mk: load/next ex: mk
+						mk: load-next ex: mk
 					][
 						values: "="
 					][
@@ -49,7 +57,7 @@ load-scanpara: use [para!][
 			[
 				mk: #"[" (
 					either error? try [
-						mk: load/next ex: mk
+						mk: load-next ex: mk
 					][
 						ex
 						values: "="
@@ -58,6 +66,22 @@ load-scanpara: use [para!][
 						values: mk/1
 					]
 				) :ex ; ]
+			]
+		]
+
+		paren: use [mk ex][
+			[
+				mk: #"(" (
+					either error? try [
+						mk: load-next ex: mk
+					][
+						ex
+						values: "="
+					][
+						ex: mk/2
+						values: mk/1
+					]
+				) :ex ; )
 			]
 		]
 
@@ -72,9 +96,9 @@ load-scanpara: use [para!][
 		]
 	]
 
-	func [scanpara [file!]][
+	load-scanpara: func [scanpara [file! url!]][
 		if all [
-			exists? scanpara: header/root/(scanpara)
+			scanpara: attempt [read scanpara]
 			scanpara: load/header scanpara
 			'paragraph = get in take scanpara 'type
 		][
@@ -126,13 +150,13 @@ load-scanner: use [para! scanner!][
 		]
 	]
 
-	func [scandoc [file!] scanpara [file!]][
+	load-scanner: func [scandoc [file! url!] scanpara [file! url!]][
 		if all [
-			exists? scandoc: header/root/(scandoc)
+			scandoc: attempt [read scandoc]
 			scandoc: load/header scandoc
 			'document = get in take scandoc 'type
 		][
-			scandoc: make scanner! compose/only [rules: (scandoc)]
+			scandoc: make scanner! compose/only [rules: (amend scandoc)]
 			if scandoc/inline: load-scanpara scanpara [
 				scandoc
 			]
@@ -239,6 +263,8 @@ fsm!: context [
 
 load-emitter: use [emitter! para!][
 	emitter!: context [
+		document: position: word: data: none
+
 		sections: context [
 			this: 0.0.0.0
 			reset: does [this: 0.0.0.0]
@@ -305,6 +331,16 @@ load-emitter: use [emitter! para!][
 			make-heading level sn str
 		]
 
+		form-url: func [url [url!]][
+			if parse url: form url amend [
+				copy url some [
+					some ascii
+					| url: extended (change/part url join "%" enbase/base form url/1 16 1)
+					| skip
+				]
+			][url]
+		]
+
 		hold-values: []
 		hold: func [value [any-type!]][insert hold-values value value]
 		release: does [take hold-values]
@@ -318,15 +354,22 @@ load-emitter: use [emitter! para!][
 
 		inline: make fsm! []
 
-		emit-inline: func [para [block!] /with state [word! block!]] [
+		emit-inline: func [
+			para [block!]
+			/with state [word! block!]
+			/local doc-position
+		][
+			doc-position: :position
 			unless block? state [
 				state: get in states any [:state 'inline]
 			]
 			inline/init state
-			foreach part para [
-				set 'value part
+			forall para [
+				position: :para
+				set 'value para/1
 				inline/event value
 			]
+			position: :doc-position
 			inline/end
 		]
 
@@ -339,7 +382,7 @@ load-emitter: use [emitter! para!][
 		]
 	
 		raise: func [msg][
-			emit compose [{<ul class="attention"><li>Document error: } (msg) {</li></ul>}]
+			emit compose [{<ul class="attention"><li>} (msg) {</li></ul>}]
 		]
 
 		outline: make fsm! []
@@ -347,6 +390,7 @@ load-emitter: use [emitter! para!][
 		outline-do: func [doc [block!] state [block!]][
 			outline/init state
 			forskip doc 2 [
+				position: doc
 				set [word data] doc
 				outline/event to set-word! word
 			]
@@ -362,9 +406,9 @@ load-emitter: use [emitter! para!][
 		]
 	]
 
-	func [makedoc [file!]][
+	load-emitter: func [makedoc [file! url!]][
 		if all [
-			exists? makedoc: header/root/(makedoc)
+			makedoc: attempt [read makedoc]
 			makedoc: load/header makedoc
 			'emitter = get in take makedoc 'type
 		][
@@ -374,63 +418,177 @@ load-emitter: use [emitter! para!][
 ]
 
 grammar!: context [
-	document: %article.r
+	root: none
+	template: none
+	document: %document.r
 	paragraph: %paragraph.r
 	markup: %html.r
 ]
 
-make-doc: func [
-	document [string! block!]
-	/custom options [block! object!]
-	/local scanner emitter
-][
-	options: make grammar! any [options []]
-	case/all [
-		string? document [
-			; _t_ "md_sc"
-			if scanner: load-scanner options/document options/paragraph [
-				document: scanner/scandoc document
-			]
+resolve: use [resolve-path][
+	resolve-path: func [root [file! url!] target [none! file! url!]][
+		case [
+			none? target [target]
+			url? target [target]
+			url? root [root/:target]
+			find/match target root [target]
+			target [root/:target]
 		]
-		block? document [
-			; _t_ "md_em"
-			if emitter: load-emitter options/markup [
-				emitter/generate document
-			]
+	]
+
+	resolve: func [options [object!]][
+		options/root: any [options/root root]
+		options/document: resolve-path options/root options/document
+		options/paragraph: resolve-path options/root options/paragraph
+		options/markup: resolve-path options/root options/markup
+		if any [file? options/template url? options/template][
+			options/template: resolve-path options/root options/template
 		]
+		options
 	]
 ]
 
-load-doc: use [document!][
+
+load-doc: use [document! form-para][
+	; form-para: func [para [string! block!]][
+	; 	para: compose [(para)]
+	; 
+	; 	join "" collect [
+	; 		foreach part para [
+	; 			case [
+	; 				string? part [keep part]
+	; 				integer? part [keep form to char! part]
+	; 				switch part [
+	; 					<quot> [keep to string! #{E2809C}]
+	; 					</quot> [keep to string! #{E2809D}]
+	; 					<apos> [keep to string! #{E28098}]
+	; 					</apos> [keep to string! #{E28099}]
+	; 				][]
+	; 				char? part [keep part]
+	; 			]
+	; 		]
+	; 	]
+	; ]
+
 	document!: context [
-		options: none
-		text: none
-		document: none
+		options: source: text: document: values: none
 		outline: func [/level depth [integer!]][
 			level: copy/part [sect1 sect2 sect3 sect4] min 1 max 4 any [depth 2]
 			remove-each [style para] copy document [
 				not find level style
 			]
 		]
-		render: does [
-			make-doc/custom document options
+		render: func [/custom options [block! object! none!]][
+			make-doc/custom self make self/options any [options []]
 		]
+		; title: has [title][
+		; 	if parse document [opt ['options skip] 'para set title block! to end][
+		; 		form-para title
+		; 	]
+		; ]
 	]
 
-	func [
-		[catch] document [string!]
+	load-doc: func [
+		[catch] document [file! url! string! binary! block!]
 		/with model [none! block! object!]
 		/custom options [none! block! object!]
-		/local doc [none!]
+		/local scanner
 	][
 		options: make grammar! any [options []]
+		resolve options
+
 		model: make document! any [model []]
 		model/options: options
-		model/text: :document
+		model/values: copy []
 
-		if doc: load-scanner options/document options/paragraph [
-			model/document: doc/scandoc document
-			model
+		case/all [
+			any [file? document url? document][
+				model/source: document
+				document: any [read document ""]
+			]
+			binary? document [
+				document: to string! document
+			]
+			string? document [
+				model/text: document
+				if scanner: load-scanner options/document options/paragraph [
+					document: scanner/scandoc document
+				]
+			]
+			block? document [
+				model/document: :document
+				model
+			]
 		]
 	]
 ]
+
+make-doc: func [
+	document [file! url! string! binary! block! object!]
+	/with model [block! object!]
+	/custom options [block! object!]
+	/local template emitter
+][
+	options: make grammar! any [options []]
+	resolve options
+
+	unless object? document [
+		document: load-doc/with/custom document model options
+	]
+
+	if object? document [
+		case [
+			all [
+				template: options/template
+				template: case/all [
+					file? template [
+						template: attempt [read template]
+					]
+					url? template [
+						template: attempt [read template]
+					]
+					binary? template [
+						template: to string! template
+					]
+					string? template [template]
+				]
+			][
+				document/options/template: none
+				render/with template [document]
+			]
+
+			emitter: load-emitter options/markup [
+				emitter/document: document
+				emitter/generate document/document
+			]
+		]
+	]
+]
+
+; make-para: func [
+; 	paragraph [string! block!]
+; 	/custom options [block! object!]
+; 	/local scanner emitter
+; ][
+; 	options: make grammar! any [options []]
+; 	resolve options
+; 
+; 	case/all [
+; 		binary? paragraph [
+; 			paragraph: to string! paragraph
+; 		]
+; 		string? paragraph [
+; 			if scanner: load-scanpara options/paragraph [
+; 				paragraph: scanner/scandoc paragraph
+; 			]
+; 		]
+; 		block? paragraph [
+; 			if emitter: load-emitter options/markup [
+; 				paragraph: emitter/emit-inline paragraph
+; 			]
+; 		]
+; 		string? paragraph [
+; 			paragraph
+; 		]
+; 	]
+; ]
