@@ -12,13 +12,14 @@ REBOL [
 	Āā	Ēē	Ḡḡ	Ī ī Ōō	Ūū	Ȳȳ	Ǣǣ Testing UTF-8: Iñtërnâtiônàlizætiøn°
 }
 
-wordify: use [out emit alphanum punct extras extras-loose extras-tight codes chars clean-up][
+wordify: use [out emit alphanum punct extras extras-loose extras-tight codes chars clean-up spacer][
 	alphanum: charset [#"0" - #"9" #"a" - #"z" #"A" - #"Z"]
 	punct: charset "!()" ; "*!',()"
 
 	codes: [
 		  copy chars some alphanum (emit chars)
-		| [" " | "-" | "/" | "_" | "‑" | "–" | "—" | "⁻" | "₋" | " "] (emit "-")
+		| [" "] (emit spacer)
+		| ["-" | "/" | "_" | "‑" | "–" | "—" | "⁻" | "₋" | " "] (emit "-")
 		| ["⁰" | "₀"] (emit "0")
 		| ["¹" | "₁"] (emit "1")
 		| ["²" | "₂"] (emit "2")
@@ -133,8 +134,15 @@ wordify: use [out emit alphanum punct extras extras-loose extras-tight codes cha
 	out: ""
 	emit: func [data][append out data]
 
-	func [text [string!] /case /loose][
+	func [
+		"Reduce a string to core alphanumeric characters."
+		text [string!] "String to Wordify"
+		/case "Preserves case."
+		/loose "Allow punctuation."
+		/with "Use a custom space character." space [string!]
+	][
 		out: copy ""
+		spacer: any [space "-"]
 		extras: either loose [:extras-loose][:extras-tight]
 
 		all [

@@ -2,8 +2,8 @@ REBOL [
 	title: "AltXML"
 	file: %altxml.r
 	author: "Christopher Ross-Gill"
-	date: 7-June-2009
-	version: 0.2.0
+	date: 12-Feb-2014
+	version: 0.2.1
 	type: 'module
 	exports: [decode-xml load-xml]
 ]
@@ -138,13 +138,18 @@ load-xml: use [
 			] hit
 		]
 
-		text: has [rule text part][
+		text: has [rule text][
 			case/all [
 				string? value [text: value]
 				block? value [
-					text: copy ""
-					parse value rule: [
-						any [[%.txt | tag!] set part string! (append text part) | skip into rule | 2 skip]
+					text: join "" collect [
+						parse value rule: [
+							any [
+								[%.txt | tag!] set text string! (keep text)
+								| skip into rule
+								| 2 skip
+							]
+						]
 					]
 					text: unless empty? text [trim/auto text]
 				]
@@ -152,7 +157,7 @@ load-xml: use [
 			]
 		]
 
-		get: func [name [issue! tag!] /local hit at][
+		get: func [name [issue! tag!] /node /local hit at dig][
 			if parse tree [
 				tag! into [
 					any [
@@ -160,7 +165,13 @@ load-xml: use [
 						| [issue! | tag! | file!] skip
 					]
 				]
-			][hit]
+			][
+				case/all [
+					all [not node object? hit][hit: hit/text]
+					string? hit [trim trim/auto hit]
+				]
+				hit
+			]
 		]
 
 		sibling: func [/before /after][
@@ -168,7 +179,8 @@ load-xml: use [
 				all [after find [tag! file!] type?/word position/3] [
 					make-node skip position 2
 				]
- 				all [before find [tag! file!] type?/word position/-2] [
+
+				all [before find [tag! file!] type?/word position/-2] [
 					make-node skip position -2
 				]
 			]
