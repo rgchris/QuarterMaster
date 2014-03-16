@@ -259,6 +259,7 @@ parser: context [
 		dot-word primary qualifier
 		form-element form-selector
 		out selectors selector
+		form-selectors
 	][
 		dot-word: use [word continue][
 			; Matches only words that begin .something
