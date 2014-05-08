@@ -1,9 +1,10 @@
-REBOL [
+Rebol [
 	Title: "MySQL Schema Tools"
 	Date:  8-Aug-2012
 	Author: "Christopher Ross-Gill"
 	Type: 'module
-	Exports: [schema-create schema-get]
+	Version: 0.2.0
+	Exports: [schema-create schema-get schema-init]
 ]
 
 schema-get: use [result new-lines to-key load-list][
@@ -458,5 +459,36 @@ schema-create: use [result to-key escape form-value listify][
 		]
 
 		result/out
+	]
+]
+
+schema-init: func [[catch] source [file! url!] /local target schema sql][
+	require %schema/schema.r
+	if all [
+		file? source
+		not find source "/"
+	][source: join wrt://system/schemas/ source]
+
+	target: replace copy source %.r %.sql
+
+	verify [
+		exists? source [
+			throw make error! "Cannot Find Schema"
+		]
+
+		not error? schema: try [load-schema source][
+			throw :schema
+		]
+
+		sql: schema-create schema [
+			throw make error! "Cannot Create Schema"
+		]
+
+		attempt [
+			write target sql
+			schema
+		][
+			throw make error! "Unable to save SQL"
+		]
 	]
 ]
