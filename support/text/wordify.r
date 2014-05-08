@@ -2,7 +2,9 @@ REBOL [
 	Title: "Wordify Text"
 	Date: 18-Oct-2011
 	Author: "Christopher Ross-Gill"
+	Type: 'module
 	Exports: [wordify unwordify]
+	Version: 0.2.0
 	Purpose: "To simplify a string to a base alphanumeric format"
 ]
 
