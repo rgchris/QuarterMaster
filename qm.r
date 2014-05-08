@@ -1,9 +1,9 @@
-REBOL [
+Rebol [
 	Title: "QuarterMaster"
 	Author: "Christopher Ross-Gill"
-	Version: 0.7.5
+	Version: 0.7.6
 	Notes: {Warning: Work-In-Progress - no liabilities for damage, etc.}
-	License: http://creativecommons.org/licenses/by-sa/3.0/
+	License: http://opensource.org/licenses/Apache-2.0
 	Needs: [2.7.8 shell]
 ]
 
@@ -67,6 +67,7 @@ settings/get: func [key [word!]][
 ]
 
 date: qm/date: qm/date - qm/date/zone + settings/zone
+qm/date/zone: settings/zone
 
 parse settings/spaces use [location][
 	[some [string! [
@@ -990,9 +991,22 @@ context [
 	]
 
 	load-rfc3339: func [date [string!]][
-		date: replace copy date "T" "/"
-		replace date "Z" "+0:00"
-		attempt [to-date date]
+		if parse/all date amend [
+			copy date [
+				3 5 digit "-" 1 2 digit "-" 1 2 digit
+				opt [
+					"T" 1 2 digit ":" 1 2 digit (change mark "/")
+					opt [
+						":" 1 2 digit opt ["." 1 6 digit]
+						opt ["Z" | ["+" | "-"] 1 2 digit ":" 1 2 digit]
+					]
+				]
+			]
+		][
+			replace date "T" "/"
+			replace date "Z" "+0:00"
+			to date! date
+		]
 	]
 
 	load-rfc822: use [day month][
@@ -1015,19 +1029,19 @@ context [
 			date: collect [
 				checked: parse/all date amend [
 					day ", "
-					copy part 2 digit (keep part)
+					copy part 1 2 digit (keep part)
 					" " (keep "-")
 					copy part month (keep part)
 					" " (keep "-")
 					copy part 4 digit (keep part)
 					" " (keep "/")
 					copy part [
-						2 digit ":" 2 digit opt [":" 2 digit]
+						1 2 digit ":" 1 2 digit opt [":" 1 2 digit]
 					] (keep part)
 					" "
 					[
 						  ["UTC" | "GMT"]
-						| copy part [["+" | "-"] 2 digit ":" 2 digit] (keep part)
+						| copy part [["+" | "-"] 1 2 digit ":" 1 2 digit] (keep part)
 						| copy part [["+" | "-"] 4 digit] (
 							insert at part 4 ":"
 							keep part
@@ -1050,6 +1064,7 @@ context [
 			type = logic! [if find ["false" "off" "no" "0" 0 false off no] value [return false]]
 			all [string? value type = date!][
 				value: any [
+					attempt [to date! value]
 					load-rfc3339 value
 					load-rfc822 value
 				]
@@ -1070,7 +1085,7 @@ context [
 	export [as]
 ]
 
-;--## IMPORT
+;--## VALIDATE
 ;-------------------------------------------------------------------##
 context [
 	filter: [
@@ -1223,7 +1238,7 @@ context [
 		spec
 	]
 
-	validate: import: func [
+	validate: func [
 		[catch] source [any-type!] spec [block!]
 		/block /report-to errs [block!]
 	][
@@ -1276,7 +1291,7 @@ context [
 							:type = 'object! [
 								value: envelop value
 								either block? format [
-									import value format
+									validate value format
 								][value]
 							]
 
@@ -1310,16 +1325,16 @@ context [
 				constraints
 			]
 
-			end (if all [block not tail? source empty? errors][key: 'import report too-many])
+			end (if all [block not tail? source empty? errors][key: 'validate report too-many])
 		]
 
-		unless spec/engage [raise "Could not parse Import specification"]
+		unless spec/engage [raise "Could not parse Validate specification"]
 
 		all [block? errs insert clear errs spec/errors]
 		unless qm/errors: all [not empty? spec/errors spec/errors][spec/result]
 	]
 
-	loose-import: func [[catch] source [block! none!] spec [block!]][
+	validate-loose: func [[catch] source [block! none!] spec [block!]][
 		unless source [return none]
 
 		spec: make-filter source compose/deep/only spec [
@@ -1357,7 +1372,7 @@ context [
 		]
 
 		either spec/engage [spec/result][
-			raise "Could not parse Import specification"
+			raise "Could not parse Validate specification"
 		]
 	]
 
@@ -1426,7 +1441,7 @@ context [
 		unless qm/errors: all [not empty? spec/errors spec/errors][spec/result]
 	]
 
-	export [import validate loose-import match]
+	export [validate validate-loose match]
 ]
 
 ;--## FILESYSTEM
@@ -1714,12 +1729,38 @@ context [
 ;-------------------------------------------------------------------##
 context [
 	qtags: []
+
+	to-attr: func [name [any-word! string!] value [any-type!] /data][
+		data: either data ["data-"][""]
+		rejoin [{ } data form name {="} sanitize form value {"}]
+	]
+
+	to-data-attrs: func [data [none! block! object!]][
+		join "" collect [
+			if data [
+				case/all [
+					block? data [
+						data: construct compose data
+					]
+					object? data [
+						foreach [name value] body-of data [
+							unless any [
+								unset? value
+								none? value
+							][
+								keep to-attr/data name value
+							]
+						]
+					]
+				]
+			]
+		]
+	]
+
 	form-val: func [val /local value][
 		val: switch/default type?/word val [
 			get-word! [
-				if value: get/any :val [
-					rejoin [{ } val {="} sanitize form value {"}]
-				]
+				all [value: get/any :val to-attr val value]
 			]
 			word! [
 				all [val: get val sanitize form val]
@@ -1747,19 +1788,22 @@ context [
 	]
 
 	add-qtag a [
-		"<a" :id :href :rel :class :title :accesskey :target ">"
+		"<a" :id :href :rel :class :title :accesskey :target (data) ">"
 	][
-		href: file! | url! | path! | email!
+		href: file! | url! | path! | email! | issue!
 		id: opt issue!
 		class: any refinement!
 		title: opt string!
 		accesskey: opt char!
 		target: opt 'new-tab
 		rel: any lit-word!
+		data: opt block!
 	][
 		all [email? href href: append to url! "mailto:" href]
 		all [path? href href: link-to :href]
+		all [issue? href href: mold href]
 		target: switch/default target [new-tab ["_blank"]][none]
+		data: to-data-attrs data
 	]
 
 	add-qtag div ["<div" :id :class ">"][
@@ -1784,12 +1828,13 @@ context [
 	]
 
 	add-qtag form [
-		"<form" :method :action :enctype :id :class ">"
+		"<form" :method :action :enctype :id :class (data) ">"
 	][
 		method: opt word! is within [get post upload put delete]
 		action: file! | url! | path!
 		id: opt issue!
 		class: any refinement!
+		data: opt block!
 	][
 		enctype: none
 		case/all [
@@ -1799,6 +1844,7 @@ context [
 			method = 'delete [method: 'post action: join action %?delete]
 			method = 'upload [method: 'post enctype: 'multipart/form-data]
 		]
+		data: to-data-attrs data
 	]
 
 	to-key: func [key [path! word!]][replace/all form compose-path :key #"/" #"."]
@@ -1832,10 +1878,11 @@ context [
 		value: opt any-string! | date! | time! | none!
 		class: any refinement!
 		placeholder: opt any-string! | number! | date! | time! | none!
+		data: opt block!
 	]
 
 	add-qtag field [
-		{<input} :type :name :value :id :size :class :maxlength :placeholder :required " />"
+		{<input} :type :name :value :id :size :class :maxlength :placeholder :required (data) " />"
 	] field [
 		type: switch/default type [
 			email! ["email"] url! ["url"] date! ["date"] search! ["search"]
@@ -1845,6 +1892,7 @@ context [
 		if date? value [value: form-date/gmt value "%Y-%m-%d"]
 		value: any [value ""]
 		required: unless required = 'opt ["required"]
+		data: to-data-attrs data
 	]
 
 	add-qtag number [
@@ -2723,7 +2771,7 @@ context [
 				; 	forall value [repend res [to-sql value/1 #","]]
 				; 	head change back tail res #")"
 				; ]
-				word!	[escape replace/all form value "-" "_"]
+				word!	[press ["`" escape replace/all form value "-" "_" "`"]]
 				path!	[either parse value [some word!][remove press map-each word to block! value [join "." form word]][form value]]
 				logic!  [either value [1][0]]
 				tuple! pair! tag! issue! email! url! file! block! [to-sql mold/all value]
@@ -3442,16 +3490,20 @@ context [
 
 	sw*: get in system 'words
 
+	form-key: func [key [string! word!]][
+		rejoin ["`" form key "`"]
+	]
+
 	insert-db: func [table [word! port!] packet [object!] /local keys values id][
 		if port? table [table: table/locals/name]
 		id: get in packet 'id
 		keys: words-of packet
 		packet: body-of packet
 		values: remove rejoin collect [loop length? keys [keep ",?"]]
-		keys: remove rejoin collect [foreach key keys [keep "," keep form key]]
+		keys: remove rejoin collect [foreach key keys [keep "," keep form-key key]]
 
 		query-db compose [
-			(press ["INSERT INTO " table " (" keys ") VALUES (" values ")"])
+			(press ["INSERT INTO " form-key table " (" keys ") VALUES (" values ")"])
 			(extract/index packet 2 2)
 		]
 
@@ -3464,25 +3516,25 @@ context [
 		if port? table [table: table/locals/name]
 
 		keys: next press collect [
-			foreach key words-of packet [keep reduce [", " form key "=?"]]
+			foreach key words-of packet [keep reduce [", " form-key key "=?"]]
 		]
 		packet: values-of packet
 
 		query-db compose [
-			(rejoin ["UPDATE " table " SET" keys " WHERE id = ?"])
+			(rejoin ["UPDATE " form-key table " SET" keys " WHERE id = ?"])
 			(packet) (id)
 		]
 	]
 
 	delete-db: func [table [word! port!] id [any-type!]][
 		if port? table [table: table/locals/name]
-		query-db compose [(rejoin ["DELETE FROM " table " WHERE id = ?"]) id]
+		query-db compose [(rejoin ["DELETE FROM " form-key table " WHERE id = ?"]) id]
 	]
 
 	export [insert-db update-db delete-db]
 
 	table!: context [
-		name: header: spec: index: root: path: packet: filter: changed: #[none]
+		name: header: spec: index: root: path: records: packet: filter: changed: #[none]
 
 		locate: func [id][form id]
 
@@ -3507,7 +3559,7 @@ context [
 				case with/only owner/locals [
 					not block? args [none]
 					not local: in forms :form [raise ["Bad Submission Request: " mold form]]
-					local: import/report-to args forms/:local errors [
+					local: validate/report-to args forms/:local errors [
 						inject local
 						local
 					]
@@ -3770,8 +3822,8 @@ context [
 
 			with table/locals [
 				root: path: (any [table/locals/header/home dirize space/:name])
-				port: (table)
-				changed: (modified? space/:name/index.r)
+				records: (table)
+				; changed: (modified? space/:name/index.r)
 			]
 		]
 
@@ -3975,7 +4027,6 @@ context [
 
 	send-response: func [body [string! binary!]][
 		system/ports/output/state/with: "^/"
-		; body: join body ["<div><b>" difference now/precise st "</b></div>"]
 		write-io system/ports/output body length? body
 		close system/ports/output
 		body
@@ -3983,7 +4034,9 @@ context [
 
 	if qm/cheyenne? [
 		send-response: func [body [string! binary!]][
-			prin to string! body
+			unless string? body [body: to string! body]
+			prin body
+			body
 		]
 	]
 
@@ -4255,7 +4308,7 @@ context [
 					args: either path/1 = args/1 [next args][none]
 					path: next path
 				]
-				args: import/block args to block! path [
+				args: validate/block args to block! path [
 					break/return action
 				]
 			]
@@ -4404,7 +4457,6 @@ if qm/live? [
 		content-limit: settings/post-limit
 		content-boundary: #[none]
 
-		content-type: as path! content-type
 		type: none
 
 		all [
