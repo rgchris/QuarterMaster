@@ -4,6 +4,7 @@ Rebol [
 	Author: "Christopher Ross-Gill"
 	File: %color-code.r
 	Type: 'module
+	Name: 'qm.color-code
 	Exports: [script? load-header color-code]
 	Purpose: {
 		Colorize source code based on datatype.
@@ -11,9 +12,11 @@ Rebol [
 		Works with R3
 		Sample CSS: http://reb4.me/s/rebol.css
 	}
-	Version: 2.1.1
+	Version: 2.1.2
 	History: [
-		23-Oct-2009 2.1.0 "First QM Module" "Christopher Ross-Gill"
+		29-Aug-2016 2.1.2 "Remove functions from headers." "Christopher Ross-Gill"
+		21-Oct-2013 2.1.1 "Custom header handling; revised sanitization process." "Christopher Ross-Gill"
+		23-Oct-2009 2.1.0 "Rewritten as QM module." "Christopher Ross-Gill"
 		29-May-2003 1.0.0 "Fixed deep parse rule bug." "Carl Sassenrath"
 	]
 ]
@@ -25,7 +28,11 @@ script?: use [space id mark type][
 	id: [
 		any space mark: 
 		any ["[" mark: (mark: back mark) any space]
-		copy type ["REBOL" | "Red" opt "/System" | "World" | "Topaz" | "Freebell"]
+		copy type ["Rebol" | "Red" opt "/System" | "World" | "Topaz" | "Freebell"] (
+			type: first find [ ; normalize capitalization
+				"Rebol" "Red" "Red/System" "World" "Topaz" "Freebell"
+			] type
+		)
 		any space
 		"[" to end
 	]
@@ -64,7 +71,7 @@ color-code: use [out emit emit-var emit-header rule value][
 
 			type: either word? :value [
 				any [
-					all [find [Rebol Red Topaz Freebell World] value "rebol"]
+					all [find [Rebol Red Topaz Freebell World] :value "rebol"]
 					all [value? :value any-function? get :value "function"]
 					all [value? :value datatype? get :value "datatype"]
 					"word"
@@ -127,7 +134,7 @@ color-code: use [out emit emit-var emit-header rule value][
 		out: make binary! 3 * length? text
 
 		unless text: script? detab text [
-			make error! "Not a REBOL script."
+			make error! "Not a Rebol script."
 		]
 
 		unless head? text [
